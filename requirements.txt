@@ -2,4 +2,4 @@ streamlit
 pytesseract
 pdf2image
 Pillow
-opencv-python-headless
+python-dotenv
