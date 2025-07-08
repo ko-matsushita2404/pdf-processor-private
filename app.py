@@ -109,9 +109,9 @@ def perform_ocr_web(pdf_bytes, filename):
         # メモリクリア
         gc.collect()
 
-# 兵機海運請求書データ抽出関数
+# 請求書データ抽出関数
 def extract_hyoki_kaiun_data(ocr_text):
-    """兵機海運請求書からデータを抽出"""
+    """請求書からデータを抽出"""
     extracted_rows_asterisk = []
     extracted_rows_no_asterisk = []
     main_seiban = ''
@@ -203,7 +203,7 @@ def extract_hyoki_kaiun_data(ocr_text):
                 '手配ｺｰﾄﾞ': '3411',
                 '納期': delivery_date,
                 '仕入先ｺｰﾄﾞ': '80129',
-                '納入場所': '滝川工業㈱\t本社工場',
+                '納入場所': '本社工場',
                 'TECHS単価区分': 'S0',
                 'TECHS完了CK': 'S1',
                 'TECHS発注情報取込CK': 'S1',
@@ -283,7 +283,7 @@ def main():
         return
     
     st.title("📄 PDF処理システム")
-    st.markdown("兵機海運請求書PDFからデータを抽出してCSVファイルを生成します。")
+    st.markdown("請求書PDFからデータを抽出してCSVファイルを生成します。")
     
     # 使用制限の説明
     st.info("💡 一度に処理できるファイルは最大5個、各ファイルサイズは10MB以下でお願いします。")
