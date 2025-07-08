@@ -13,8 +13,8 @@ from pdf2image import convert_from_bytes
 from PIL import Image
 import logging
 
-# ログ設定
-logging.basicConfig(level=logging.INFO)
+# ログ設定（セキュリティ向上のため最小限のログ出力）
+logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
 # パスワード設定（Streamlit Secretsまたは環境変数から取得）
@@ -72,11 +72,9 @@ def optimize_image_for_ocr(image):
 
 # OCR処理関数
 @st.cache_data(ttl=3600)  # 1時間キャッシュ
-def perform_ocr_web(pdf_bytes, filename):
+def perform_ocr_web(pdf_bytes, file_hash):
     """PDF bytesからOCRでテキストを抽出（キャッシュ対応）"""
     try:
-        logger.info(f"Starting OCR processing for: {filename}")
-        
         # PDFパスワード処理
         if PDF_PASSWORD:
             images = convert_from_bytes(pdf_bytes, userpw=PDF_PASSWORD)
@@ -98,11 +96,10 @@ def perform_ocr_web(pdf_bytes, filename):
             # メモリクリア
             del optimized_image
             
-        logger.info(f"OCR processing completed for: {filename}")
         return full_text
         
     except Exception as e:
-        logger.error(f"OCR processing error for {filename}: {str(e)}")
+        logger.error(f"OCR processing error: {str(e)}")
         st.error(f"OCR処理でエラーが発生しました: {str(e)}")
         return None
     finally:
@@ -219,9 +216,9 @@ def extract_hyoki_kaiun_data(ocr_text):
 
     return extracted_rows_asterisk, extracted_rows_no_asterisk
 
-# CSV生成関数
+# CSV生成関数（UTF-8エンコーディング対応）
 def generate_csv_data(extracted_rows):
-    """抽出したデータをCSV形式で生成"""
+    """抽出したデータをCSV形式で生成（UTF-8エンコーディング）"""
     if not extracted_rows:
         return None
     
@@ -237,17 +234,20 @@ def generate_csv_data(extracted_rows):
     writer.writeheader()
     writer.writerows(final_data)
     
-    return output.getvalue()
+    # UTF-8エンコーディングでバイト形式に変換
+    csv_content = output.getvalue()
+    return csv_content.encode('utf-8-sig')  # BOM付きUTF-8
 
 # メイン処理関数
 def process_pdf_file(pdf_file):
     """単一PDFファイルの処理"""
     try:
-        logger.info(f"Processing file: {pdf_file.name}")
+        # ファイルハッシュ生成（セキュリティ向上のため）
+        pdf_bytes = pdf_file.read()
+        file_hash = str(hash(pdf_bytes))
         
         # OCR処理
-        pdf_bytes = pdf_file.read()
-        ocr_text = perform_ocr_web(pdf_bytes, pdf_file.name)
+        ocr_text = perform_ocr_web(pdf_bytes, file_hash)
         
         if not ocr_text:
             return None, None, None
@@ -255,15 +255,14 @@ def process_pdf_file(pdf_file):
         # データ抽出
         extracted_rows_asterisk, extracted_rows_no_asterisk = extract_hyoki_kaiun_data(ocr_text)
         
-        # CSV生成
+        # CSV生成（UTF-8エンコーディング）
         csv_asterisk = generate_csv_data(extracted_rows_asterisk) if extracted_rows_asterisk else None
         csv_no_asterisk = generate_csv_data(extracted_rows_no_asterisk) if extracted_rows_no_asterisk else None
         
-        logger.info(f"Successfully processed: {pdf_file.name}")
         return ocr_text, csv_asterisk, csv_no_asterisk
         
     except Exception as e:
-        logger.error(f"Processing error for {pdf_file.name}: {str(e)}")
+        logger.error(f"Processing error: {str(e)}")
         st.error(f"処理エラー: {str(e)}")
         return None, None, None
     finally:
@@ -304,7 +303,7 @@ def main():
         # ファイルサイズ制限（10MB）
         for file in uploaded_files:
             if file.size > 10 * 1024 * 1024:  # 10MB
-                st.error(f"ファイル '{file.name}' が大きすぎます（10MB以下にしてください）")
+                st.error(f"ファイルサイズが大きすぎます（10MB以下にしてください）")
                 return
         
         st.success(f"{len(uploaded_files)}個のファイルが選択されました。")
@@ -315,21 +314,21 @@ def main():
                 results = []
                 
                 for i, uploaded_file in enumerate(uploaded_files):
-                    st.write(f"処理中: {uploaded_file.name}")
+                    st.write(f"処理中: ファイル {i+1}/{len(uploaded_files)}")
                     
                     # PDFファイル処理
                     ocr_text, csv_asterisk, csv_no_asterisk = process_pdf_file(uploaded_file)
                     
                     if ocr_text:
                         results.append({
-                            'filename': uploaded_file.name,
+                            'index': i + 1,
                             'ocr_text': ocr_text,
                             'csv_asterisk': csv_asterisk,
                             'csv_no_asterisk': csv_no_asterisk
                         })
-                        st.success(f"✅ {uploaded_file.name} 処理完了")
+                        st.success(f"✅ ファイル {i+1} 処理完了")
                     else:
-                        st.error(f"❌ {uploaded_file.name} 処理失敗")
+                        st.error(f"❌ ファイル {i+1} 処理失敗")
                     
                     progress_bar.progress((i + 1) / len(uploaded_files))
                 
@@ -341,18 +340,18 @@ def main():
                     zip_buffer = io.BytesIO()
                     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
                         for result in results:
-                            base_name = os.path.splitext(result['filename'])[0]
+                            file_index = result['index']
                             
                             # OCRテキスト
-                            zip_file.writestr(f"{base_name}_ocr_text.txt", result['ocr_text'])
+                            zip_file.writestr(f"file_{file_index:02d}_ocr_text.txt", result['ocr_text'])
                             
                             # CSV（課税対象）
                             if result['csv_asterisk']:
-                                zip_file.writestr(f"{base_name}_asterisk.csv", result['csv_asterisk'])
+                                zip_file.writestr(f"file_{file_index:02d}_asterisk.csv", result['csv_asterisk'])
                             
                             # CSV（免税）
                             if result['csv_no_asterisk']:
-                                zip_file.writestr(f"{base_name}_no_asterisk.csv", result['csv_no_asterisk'])
+                                zip_file.writestr(f"file_{file_index:02d}_no_asterisk.csv", result['csv_no_asterisk'])
                     
                     zip_buffer.seek(0)
                     
@@ -365,7 +364,7 @@ def main():
                     
                     # 個別ファイル表示
                     for result in results:
-                        with st.expander(f"📄 {result['filename']} の詳細"):
+                        with st.expander(f"📄 ファイル {result['index']} の詳細"):
                             
                             # OCRテキスト表示
                             st.subheader("OCRテキスト")
@@ -373,7 +372,7 @@ def main():
                                 "抽出されたテキスト",
                                 result['ocr_text'],
                                 height=200,
-                                key=f"ocr_{result['filename']}"
+                                key=f"ocr_file_{result['index']}"
                             )
                             
                             # CSV表示
@@ -385,7 +384,7 @@ def main():
                                     st.download_button(
                                         label="CSVダウンロード",
                                         data=result['csv_asterisk'],
-                                        file_name=f"{os.path.splitext(result['filename'])[0]}_asterisk.csv",
+                                        file_name=f"file_{result['index']:02d}_asterisk.csv",
                                         mime="text/csv"
                                     )
                             
@@ -395,7 +394,7 @@ def main():
                                     st.download_button(
                                         label="CSVダウンロード",
                                         data=result['csv_no_asterisk'],
-                                        file_name=f"{os.path.splitext(result['filename'])[0]}_no_asterisk.csv",
+                                        file_name=f"file_{result['index']:02d}_no_asterisk.csv",
                                         mime="text/csv"
                                     )
                 else:
