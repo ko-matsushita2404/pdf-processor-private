@@ -194,6 +194,7 @@ def extract_hyoki_kaiun_data(ocr_text):
                 '品名': hinmei,
                 '員数': inzu,
                 '単位': tani,
+                '発注数量': inzu,
                 '発注単価': hacchu_tanka,
                 '金額': kingaku,
                 '形式寸法': keishiki_sunpou,
