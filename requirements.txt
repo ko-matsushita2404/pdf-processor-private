@@ -3,3 +3,6 @@ pytesseract
 pdf2image
 Pillow
 python-dotenv
+streamlit
+fuzzywuzzy
+python-Levenshtein  # optionalですが入れるとfuzzywuzzy高速化されます
