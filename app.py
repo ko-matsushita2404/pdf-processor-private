@@ -216,7 +216,7 @@ def extract_hyoki_kaiun_data(ocr_text):
                 'TECHS発注情報取込CK': 'S1',
             }
 
-            if line.strip().startswith('*'):
+            if line.strip().startswith(('*','＊')):
                 extracted_rows_asterisk.append(row_data)
             else:
                 row_data['品名'] = f"{row_data['品名']}（免税）"
