@@ -185,7 +185,7 @@ def extract_hyoki_kaiun_data(ocr_text):
 
             correct_items = ['ｺﾝﾃﾅｰ運搬料', 'ﾄﾗｯｸ賃', 'ｸﾚｰﾝ代', '船社費用(立替)']
             match, score = process.extractOne(hinmei, correct_items)
-            if score > 70:  # 類似度70%以上なら補正
+            if score > 60:  # 類似度60%以上なら補正
                 hinmei = match
 
             # 次の行が形式寸法かチェック
