@@ -121,7 +121,7 @@ def extract_hyoki_kaiun_data(ocr_text):
         main_seiban = match_seiban_header.group(1)
 
     # 請求書番号抽出
-    match_invoice_no = re.search(r'請求N\S+\s*:\s*:\s*([A-Z0-9-]+)', ocr_text)
+    match_invoice_no = re.search(r'請求N\S*\s*:\s*:\s*([A-Z0-9-]+)', ocr_text)
     if match_invoice_no:
         invoice_no = match_invoice_no.group(1)
 
@@ -209,7 +209,7 @@ def extract_hyoki_kaiun_data(ocr_text):
                 '手配ｺｰﾄﾞ': '3411',
                 '納期': delivery_date,
                 '仕入先ｺｰﾄﾞ': '80129',
-                '納入場所': '本社工場',
+                '納入場所': '滝川工業㈱　本社工場',
                 'TECHS単価区分': 'S0',
                 'TECHS完了CK': 'S1',
                 'TECHS発注情報取込CK': 'S1',
