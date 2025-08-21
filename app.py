@@ -229,7 +229,7 @@ def extract_hyoki_kaiun_data(ocr_text):
 
         i += 1
 
-    return extracted_rows_asterisk, extracted_rows_no_asterisk,main_seiban
+    return extracted_rows_asterisk, extracted_rows_no_asterisk, main_seiban
 
 # CSV生成関数（UTF-8エンコーディング対応）
 def generate_csv_data(extracted_rows):
@@ -268,7 +268,7 @@ def process_pdf_file(pdf_file):
             return None, None, None
         
         # データ抽出
-        extracted_rows_asterisk, extracted_rows_no_asterisk,main_seiban = extract_hyoki_kaiun_data(ocr_text)
+        extracted_rows_asterisk, extracted_rows_no_asterisk, main_seiban = extract_hyoki_kaiun_data(ocr_text)
         
         # CSV生成（UTF-8エンコーディング）
         csv_asterisk = generate_csv_data(extracted_rows_asterisk) if extracted_rows_asterisk else None
@@ -363,18 +363,18 @@ def main():
                             
                             # CSV（課税対象）
                             if result['csv_asterisk']:
-                                zip_file.writestr(f"｛main_seiban｝ 兵機海運　課税.csv", result['csv_asterisk'])
+                                zip_file.writestr(f"{main_seiban} 兵機海運　課税.csv", result['csv_asterisk'])
                             
                             # CSV（免税）
                             if result['csv_no_asterisk']:
-                                zip_file.writestr(f"｛main_seiban｝ 兵機海運　免税.csv", result['csv_no_asterisk'])
+                                zip_file.writestr(f"{main_seiban} 兵機海運　免税.csv", result['csv_no_asterisk'])
                     
                     zip_buffer.seek(0)
                     
                     st.download_button(
                         label="📥 結果をダウンロード（ZIP形式）",
                         data=zip_buffer.getvalue(),
-                        file_name=f"兵機海運請求書_csv_｛main_seiban｝_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                        file_name=f"兵機海運請求書_csv_{main_seiban}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
                         mime="application/zip"
                     )
                     
