@@ -10,7 +10,7 @@ import re
 import csv
 import pytesseract
 from pdf2image import convert_from_bytes
-from PIL import Image
+from PIL import Image, ImageEnhance
 import logging
 import numpy as np
 from PIL import ImageEnhance
@@ -62,10 +62,11 @@ CSV_HEADERS = [
     'TECHS単価区分', 'TECHS完了CK', 'TECHS発注情報取込CK'
 ]
 
-# 白黒画像判定関数
+# 白黒画像判定関数（PIL標準機能のみ）
 def is_grayscale_image(image):
     """
     画像が白黒（グレースケール）かどうかを判定
+    PIL標準機能のみ使用
     
     Args:
         image (PIL.Image): 判定する画像
@@ -78,31 +79,39 @@ def is_grayscale_image(image):
         if image.mode != 'RGB':
             image = image.convert('RGB')
         
-        # 画像をnumpy配列に変換
-        img_array = np.array(image)
+        # 画像を小さくサンプリング（処理速度向上）
+        original_size = image.size
+        if original_size[0] * original_size[1] > 50000:  # 5万ピクセル以上なら縮小
+            # アスペクト比を維持しながら縮小
+            max_dimension = 200
+            ratio = min(max_dimension / original_size[0], max_dimension / original_size[1])
+            new_size = (int(original_size[0] * ratio), int(original_size[1] * ratio))
+            sample_image = image.resize(new_size, Image.NEAREST)
+        else:
+            sample_image = image
         
-        # サンプリングして処理速度を向上（大きな画像の場合）
-        height, width = img_array.shape[:2]
-        if height * width > 500000:  # 50万ピクセル以上の場合はサンプリング
-            step = max(1, int(np.sqrt(height * width / 100000)))  # 10万ピクセル程度にサンプリング
-            img_array = img_array[::step, ::step]
+        # ピクセルデータを取得
+        pixels = list(sample_image.getdata())
         
-        # RGBの各チャンネルを取得
-        r, g, b = img_array[:,:,0], img_array[:,:,1], img_array[:,:,2]
+        # RGBが同じ値かどうかをチェック
+        color_pixel_count = 0
+        total_pixels = len(pixels)
         
-        # RGBの差分を計算
-        rg_diff = np.abs(r.astype(np.int16) - g.astype(np.int16))
-        rb_diff = np.abs(r.astype(np.int16) - b.astype(np.int16))
-        gb_diff = np.abs(g.astype(np.int16) - b.astype(np.int16))
+        # サンプリングして処理速度を向上（大量ピクセルの場合）
+        step = max(1, total_pixels // 10000)  # 最大1万ピクセルをサンプリング
         
-        # 色差の平均を計算
-        color_diff_mean = np.mean([rg_diff, rb_diff, gb_diff])
+        for i in range(0, total_pixels, step):
+            r, g, b = pixels[i]
+            # RGB値の差が閾値以上なら「色」ピクセルとカウント
+            if abs(r - g) > 8 or abs(r - b) > 8 or abs(g - b) > 8:
+                color_pixel_count += 1
         
-        # しきい値以下なら白黒と判定（調整可能）
-        threshold = 5  # この値以下なら白黒とみなす
-        is_bw = color_diff_mean <= threshold
+        # カラーピクセルの割合が3%以下なら白黒と判定
+        sampled_total = len(range(0, total_pixels, step))
+        color_ratio = color_pixel_count / sampled_total if sampled_total > 0 else 0
+        is_bw = color_ratio <= 0.03
         
-        logger.info(f"Color difference mean: {color_diff_mean:.2f}, Threshold: {threshold}, Is B&W: {is_bw}")
+        logger.info(f"Color pixel ratio: {color_ratio:.4f}, Is B&W: {is_bw}")
         
         return is_bw
         
@@ -111,10 +120,10 @@ def is_grayscale_image(image):
         # エラーが発生した場合はカラーとして扱う（安全側）
         return False
 
-# 画像最適化関数（白黒判定対応・OpenCV不要版）
+# 画像最適化関数（PIL標準機能のみ）
 def optimize_image_for_ocr(image, force_bw_mode=False):
     """
-    OCR用に画像を最適化（白黒判定に基づく処理・OpenCV不要版）
+    OCR用に画像を最適化（PIL標準機能のみ使用）
     
     Args:
         image (PIL.Image): 最適化する画像
@@ -139,25 +148,25 @@ def optimize_image_for_ocr(image, force_bw_mode=False):
         if image.mode != 'L':
             image = image.convert('L')
         
-        # 白黒画像用のTesseract設定（より厳密な設定）
+        # 白黒画像用のTesseract設定
         ocr_config = '--oem 3 --psm 6 -c preserve_interword_spaces=1'
         
-        # PILを使用したコントラスト強化（OpenCV不要）
+        # PILを使用した画像強化
         try:
-            # コントラスト調整
-            contrast_enhancer = ImageEnhance.Contrast(image)
-            image = contrast_enhancer.enhance(1.5)  # コントラストを1.5倍に
+            # コントラスト調整（白黒画像では効果的）
+            enhancer = ImageEnhance.Contrast(image)
+            image = enhancer.enhance(1.4)  # コントラストを1.4倍に
             
             # シャープネス調整
-            sharpness_enhancer = ImageEnhance.Sharpness(image)
-            image = sharpness_enhancer.enhance(1.2)  # シャープネスを1.2倍に
+            enhancer = ImageEnhance.Sharpness(image)
+            image = enhancer.enhance(1.3)  # シャープネスを1.3倍に
             
-            # 明度調整（必要に応じて）
-            brightness_enhancer = ImageEnhance.Brightness(image)
-            image = brightness_enhancer.enhance(1.1)  # 明度を少し上げる
+            # 明度の微調整
+            enhancer = ImageEnhance.Brightness(image)
+            image = enhancer.enhance(1.05)  # 明度を5%上げる
             
         except Exception as e:
-            logger.warning(f"Image enhancement failed: {str(e)}")
+            logger.warning(f"B&W image enhancement failed: {str(e)}")
             # 強化に失敗した場合は元の画像を使用
         
     else:
@@ -171,8 +180,14 @@ def optimize_image_for_ocr(image, force_bw_mode=False):
         
         # カラー画像も軽く強化
         try:
-            contrast_enhancer = ImageEnhance.Contrast(image)
-            image = contrast_enhancer.enhance(1.2)
+            # コントラストを軽く調整
+            enhancer = ImageEnhance.Contrast(image)
+            image = enhancer.enhance(1.15)  # コントラストを1.15倍に
+            
+            # シャープネスを軽く調整
+            enhancer = ImageEnhance.Sharpness(image)
+            image = enhancer.enhance(1.1)  # シャープネスを1.1倍に
+            
         except Exception as e:
             logger.warning(f"Color image enhancement failed: {str(e)}")
     
