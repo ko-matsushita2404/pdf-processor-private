@@ -154,7 +154,7 @@ def extract_hyoki_kaiun_data(ocr_text):
         re.compile(r'^\S+\s*\(\s*\d+TON\s*\)$'),
         re.compile(r'^\d+品目=\d+申告$'),
         re.compile(r'^\d+TON$'),
-        re.compile(r'^\s*\((?:トレーラー|コンテナ|混載便)\)$'),
+        re.compile(r'^\s*(?:トレーラー|コンテナ|混載便)$'),
     ]
 
     i = 0
@@ -362,18 +362,18 @@ def main():
                             
                             # CSV（課税対象）
                             if result['csv_asterisk']:
-                                zip_file.writestr(f"file_{file_index:02d}_asterisk.csv", result['csv_asterisk'])
+                                zip_file.writestr(f"｛'main_seiban'｝ 兵機海運　課税.csv", result['csv_asterisk'])
                             
                             # CSV（免税）
                             if result['csv_no_asterisk']:
-                                zip_file.writestr(f"file_{file_index:02d}_no_asterisk.csv", result['csv_no_asterisk'])
+                                zip_file.writestr(f"｛'main_seiban'｝ 兵機海運　免税.csv", result['csv_no_asterisk'])
                     
                     zip_buffer.seek(0)
                     
                     st.download_button(
                         label="📥 結果をダウンロード（ZIP形式）",
                         data=zip_buffer.getvalue(),
-                        file_name=f"pdf_processing_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                        file_name=f"兵機海運請求書_csv_｛'main_seiban'｝_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
                         mime="application/zip"
                     )
                     
