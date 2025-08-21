@@ -154,6 +154,7 @@ def extract_hyoki_kaiun_data(ocr_text):
         re.compile(r'^\S+\s*\(\s*\d+TON\s*\)$'),
         re.compile(r'^\d+品目=\d+申告$'),
         re.compile(r'^\d+TON$'),
+        re.compile(r'^\s*\((?:トレーラー|コンテナ|混載便)\)$'),
     ]
 
     i = 0
@@ -173,9 +174,13 @@ def extract_hyoki_kaiun_data(ocr_text):
             # 1. まず固定ルールで補正
             replacement_rules = {
                 'ネコッテナ運搬料': 'ｺﾝﾃﾅｰ運搬料',
+                'ォュサー運搬料': 'ｺﾝﾃﾅｰ運搬料',
                 'トう97賃': 'ﾄﾗｯｸ賃',
                 'トう9賃': 'ﾄﾗｯｸ賃',
+                '了292任':'ﾄﾗｯｸ賃',
+                '292任':'ﾄﾗｯｸ賃',
                 'ルーッ代': 'ｸﾚｰﾝ代',
+                'ーッ代': 'ｸﾚｰﾝ代',
                 'a社費用(立替)': '船社費用(立替)',
             }
             hinmei = replacement_rules.get(hinmei, hinmei)
@@ -185,7 +190,7 @@ def extract_hyoki_kaiun_data(ocr_text):
 
             correct_items = ['ｺﾝﾃﾅｰ運搬料', 'ﾄﾗｯｸ賃', 'ｸﾚｰﾝ代', '船社費用(立替)']
             match, score = process.extractOne(hinmei, correct_items)
-            if score > 60:  # 類似度60%以上なら補正
+            if score > 70:  # 類似度70%以上なら補正
                 hinmei = match
 
             # 次の行が形式寸法かチェック
