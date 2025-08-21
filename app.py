@@ -349,6 +349,7 @@ def main():
                 
                 # 結果表示
                 st.markdown("## 処理結果")
+                main_seiban = extract_hyoki_kaiun_data(ocr_text)[2]  # 関数の戻り値からmain_seibanを取得
                 
                 if results:
                     # ZIP形式でダウンロード
@@ -359,8 +360,6 @@ def main():
                             
                             # OCRテキスト
                             zip_file.writestr(f"file_{file_index:02d}_ocr_text.txt", result['ocr_text'])
-                            
-                            main_seiban = extract_hyoki_kaiun_data(ocr_text)[2]  # 関数の戻り値からmain_seibanを取得
                             
                             # CSV（課税対象）
                             if result['csv_asterisk']:
