@@ -121,9 +121,10 @@ def extract_hyoki_kaiun_data(ocr_text):
         main_seiban = match_seiban_header.group(1)
 
     # 請求書番号抽出
-    match_invoice_no = re.search(r'請求N\)\s*:\s*:\s*([A-Z0-9-]+)', ocr_text)
-    if match_invoice_no:
-        invoice_no = match_invoice_no.group(1)
+    ocr_text = ocr_text.strip().replace('\u3000', ' ')
+    match = re.search(r'請求N[O\)]\s*[:：]\s*([A-Z0-9-]+)', ocr_text)
+    if match:
+    invoice_no = match.group(1)
 
     # 納期抽出
     match_delivery_date = re.search(r'請求日\s*:\s*(\d{4}/\d{2}/\d{2})', ocr_text)
