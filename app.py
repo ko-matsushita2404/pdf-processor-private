@@ -121,7 +121,7 @@ def extract_hyoki_kaiun_data(ocr_text):
         main_seiban = match_seiban_header.group(1)
 
     # 請求書番号抽出
-    match_invoice_no = re.search(r'請求N[O\)]\s*:\s*:\s*([A-Z0-9-]+)', ocr_text)
+    match_invoice_no = re.search(r'請求N\S+\s*:\s*:\s*([A-Z0-9-]+)', ocr_text)
     if match_invoice_no:
         invoice_no = match_invoice_no.group(1)
 
