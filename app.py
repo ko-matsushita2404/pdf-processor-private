@@ -10,10 +10,8 @@ import re
 import csv
 import pytesseract
 from pdf2image import convert_from_bytes
-from PIL import Image, ImageEnhance
+from PIL import Image
 import logging
-import numpy as np
-from PIL import ImageEnhance
 
 # ログ設定（セキュリティ向上のため最小限のログ出力）
 logging.basicConfig(level=logging.ERROR)
@@ -62,141 +60,20 @@ CSV_HEADERS = [
     'TECHS単価区分', 'TECHS完了CK', 'TECHS発注情報取込CK'
 ]
 
-# 白黒画像判定関数（PIL標準機能のみ）
-def is_grayscale_image(image):
-    """
-    画像が白黒（グレースケール）かどうかを判定
-    PIL標準機能のみ使用
-    
-    Args:
-        image (PIL.Image): 判定する画像
-    
-    Returns:
-        bool: 白黒の場合True、カラーの場合False
-    """
-    try:
-        # RGB画像に変換
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # 画像を小さくサンプリング（処理速度向上）
-        original_size = image.size
-        if original_size[0] * original_size[1] > 50000:  # 5万ピクセル以上なら縮小
-            # アスペクト比を維持しながら縮小
-            max_dimension = 200
-            ratio = min(max_dimension / original_size[0], max_dimension / original_size[1])
-            new_size = (int(original_size[0] * ratio), int(original_size[1] * ratio))
-            sample_image = image.resize(new_size, Image.NEAREST)
-        else:
-            sample_image = image
-        
-        # ピクセルデータを取得
-        pixels = list(sample_image.getdata())
-        
-        # RGBが同じ値かどうかをチェック
-        color_pixel_count = 0
-        total_pixels = len(pixels)
-        
-        # サンプリングして処理速度を向上（大量ピクセルの場合）
-        step = max(1, total_pixels // 10000)  # 最大1万ピクセルをサンプリング
-        
-        for i in range(0, total_pixels, step):
-            r, g, b = pixels[i]
-            # RGB値の差が閾値以上なら「色」ピクセルとカウント
-            if abs(r - g) > 8 or abs(r - b) > 8 or abs(g - b) > 8:
-                color_pixel_count += 1
-        
-        # カラーピクセルの割合が3%以下なら白黒と判定
-        sampled_total = len(range(0, total_pixels, step))
-        color_ratio = color_pixel_count / sampled_total if sampled_total > 0 else 0
-        is_bw = color_ratio <= 0.03
-        
-        logger.info(f"Color pixel ratio: {color_ratio:.4f}, Is B&W: {is_bw}")
-        
-        return is_bw
-        
-    except Exception as e:
-        logger.error(f"Grayscale detection error: {str(e)}")
-        # エラーが発生した場合はカラーとして扱う（安全側）
-        return False
-
-# 画像最適化関数（PIL標準機能のみ）
-def optimize_image_for_ocr(image, force_bw_mode=False):
-    """
-    OCR用に画像を最適化（PIL標準機能のみ使用）
-    
-    Args:
-        image (PIL.Image): 最適化する画像
-        force_bw_mode (bool): 強制的に白黒モードを適用するかどうか
-    
-    Returns:
-        tuple: (最適化された画像, 白黒フラグ, OCR設定)
-    """
+# 画像最適化関数
+def optimize_image_for_ocr(image):
+    """OCR用に画像を最適化"""
     # 画像サイズを制限（メモリ使用量削減）
     if image.size[0] > 2000:
         ratio = 2000 / image.size[0]
         new_size = (int(image.size[0] * ratio), int(image.size[1] * ratio))
         image = image.resize(new_size, Image.LANCZOS)
-    
-    # 白黒判定
-    is_bw = force_bw_mode or is_grayscale_image(image)
-    
-    # OCR設定を白黒かカラーかに基づいて調整
-    if is_bw:
-        # 白黒画像用の設定
-        # グレースケールに変換
-        if image.mode != 'L':
-            image = image.convert('L')
-        
-        # 白黒画像用のTesseract設定
-        ocr_config = '--oem 3 --psm 6 -c preserve_interword_spaces=1'
-        
-        # PILを使用した画像強化
-        try:
-            # コントラスト調整（白黒画像では効果的）
-            enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(1.4)  # コントラストを1.4倍に
-            
-            # シャープネス調整
-            enhancer = ImageEnhance.Sharpness(image)
-            image = enhancer.enhance(1.3)  # シャープネスを1.3倍に
-            
-            # 明度の微調整
-            enhancer = ImageEnhance.Brightness(image)
-            image = enhancer.enhance(1.05)  # 明度を5%上げる
-            
-        except Exception as e:
-            logger.warning(f"B&W image enhancement failed: {str(e)}")
-            # 強化に失敗した場合は元の画像を使用
-        
-    else:
-        # カラー画像用の設定
-        # RGBに変換
-        if image.mode != 'RGB':
-            image = image.convert('RGB')
-        
-        # カラー画像用のTesseract設定
-        ocr_config = '--oem 3 --psm 6'
-        
-        # カラー画像も軽く強化
-        try:
-            # コントラストを軽く調整
-            enhancer = ImageEnhance.Contrast(image)
-            image = enhancer.enhance(1.15)  # コントラストを1.15倍に
-            
-            # シャープネスを軽く調整
-            enhancer = ImageEnhance.Sharpness(image)
-            image = enhancer.enhance(1.1)  # シャープネスを1.1倍に
-            
-        except Exception as e:
-            logger.warning(f"Color image enhancement failed: {str(e)}")
-    
-    return image, is_bw, ocr_config
+    return image
 
-# OCR処理関数（白黒対応版）
+# OCR処理関数
 @st.cache_data(ttl=3600)  # 1時間キャッシュ
 def perform_ocr_web(pdf_bytes, file_hash):
-    """PDF bytesからOCRでテキストを抽出（白黒判定対応版）"""
+    """PDF bytesからOCRでテキストを抽出（キャッシュ対応）"""
     try:
         # PDFパスワード処理
         if PDF_PASSWORD:
@@ -206,32 +83,19 @@ def perform_ocr_web(pdf_bytes, file_hash):
             images = convert_from_bytes(pdf_bytes)
         
         full_text = ""
-        bw_pages = 0
-        color_pages = 0
-        
         for i, image in enumerate(images):
-            # 画像を最適化（白黒判定含む）
-            optimized_image, is_bw, ocr_config = optimize_image_for_ocr(image)
+            # 画像を最適化
+            optimized_image = optimize_image_for_ocr(image)
             
-            if is_bw:
-                bw_pages += 1
-                st.info(f"📄 ページ {i+1}: 白黒画像として処理中...")
-            else:
-                color_pages += 1
-                st.info(f"📄 ページ {i+1}: カラー画像として処理中...")
-            
-            # 日本語OCR実行（最適化された設定で）
-            text = pytesseract.image_to_string(optimized_image, lang='jpn', config=ocr_config)
-            full_text += f"--- Page {i+1} {'(B&W)' if is_bw else '(Color)'} ---\n"
+            # 日本語OCR実行
+            text = pytesseract.image_to_string(optimized_image, lang='jpn')
+            full_text += f"--- Page {i+1} ---\n"
             full_text += text
             full_text += "\n"
             
             # メモリクリア
             del optimized_image
-        
-        # 処理結果のサマリー表示
-        st.success(f"✅ OCR完了: 白黒ページ {bw_pages}枚, カラーページ {color_pages}枚")
-        
+            
         return full_text
         
     except Exception as e:
@@ -317,15 +181,12 @@ def extract_hyoki_kaiun_data(ocr_text):
             hinmei = replacement_rules.get(hinmei, hinmei)
 
             # 2. 次に fuzzywuzzy 補正でより近い候補があれば置換
-            try:
-                from fuzzywuzzy import process
-                correct_items = ['ｺﾝﾃﾅｰ運搬料', 'ﾄﾗｯｸ賃', 'ｸﾚｰﾝ代', '船社費用(立替)']
-                match_result, score = process.extractOne(hinmei, correct_items)
-                if score > 70:  # 類似度70%以上なら補正
-                    hinmei = match_result
-            except ImportError:
-                # fuzzywuzzyがない場合はスキップ
-                pass
+            from fuzzywuzzy import process
+
+            correct_items = ['ｺﾝﾃﾅｰ運搬料', 'ﾄﾗｯｸ賃', 'ｸﾚｰﾝ代', '船社費用(立替)']
+            match, score = process.extractOne(hinmei, correct_items)
+            if score > 70:  # 類似度70%以上なら補正
+                hinmei = match
 
             # 次の行が形式寸法かチェック
             if i + 1 < len(lines):
@@ -421,7 +282,7 @@ def process_pdf_file(pdf_file):
 # メインアプリケーション
 def main():
     st.set_page_config(
-        page_title="PDF処理システム（白黒判定対応）",
+        page_title="PDF処理システム",
         page_icon="📄",
         layout="wide",
         initial_sidebar_state="collapsed"
@@ -430,12 +291,11 @@ def main():
     if not check_password():
         return
     
-    st.title("📄 PDF処理システム（白黒判定対応）")
-    st.markdown("請求書PDFからデータを抽出してCSVファイルを生成します。白黒PDFを自動判定してOCRエンジンを最適化します。")
+    st.title("📄 PDF処理システム")
+    st.markdown("請求書PDFからデータを抽出してCSVファイルを生成します。")
     
     # 使用制限の説明
     st.info("💡 一度に処理できるファイルは最大5個、各ファイルサイズは10MB以下でお願いします。")
-    st.info("🎯 白黒PDFは自動判定され、最適化されたOCR設定で処理されます。")
     
     # ファイルアップロード
     uploaded_files = st.file_uploader(
