@@ -169,16 +169,23 @@ def extract_hyoki_kaiun_data(ocr_text):
             kingaku = kingaku_str.replace('JPY', '').replace(',', '').replace(' ', '').strip()
             keishiki_sunpou = ''
 
-            # OCR誤認識の置換ルール
-            replacement_rules = {
+            # 1. まず固定ルールで補正
+　          replacement_rules = {
                 'ネコッテナ運搬料': 'ｺﾝﾃﾅｰ運搬料',
                 'トう97賃': 'ﾄﾗｯｸ賃',
                 'トう9賃': 'ﾄﾗｯｸ賃',
                 'ルーッ代': 'ｸﾚｰﾝ代',
                 'a社費用(立替)': '船社費用(立替)',
             }
-
             hinmei = replacement_rules.get(hinmei, hinmei)
+
+            # 2. 次に fuzzywuzzy 補正でより近い候補があれば置換
+            from fuzzywuzzy import process
+
+            correct_items = ['ｺﾝﾃﾅｰ運搬料', 'ﾄﾗｯｸ賃', 'ｸﾚｰﾝ代', '船社費用(立替)']
+            match, score = process.extractOne(hinmei, correct_items)
+            if score > 70:  # 類似度70%以上なら補正
+                hinmei = match
 
             # 次の行が形式寸法かチェック
             if i + 1 < len(lines):
