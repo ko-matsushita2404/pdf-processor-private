@@ -170,7 +170,7 @@ def extract_hyoki_kaiun_data(ocr_text):
             keishiki_sunpou = ''
 
             # 1. まず固定ルールで補正
-　          replacement_rules = {
+            replacement_rules = {
                 'ネコッテナ運搬料': 'ｺﾝﾃﾅｰ運搬料',
                 'トう97賃': 'ﾄﾗｯｸ賃',
                 'トう9賃': 'ﾄﾗｯｸ賃',
