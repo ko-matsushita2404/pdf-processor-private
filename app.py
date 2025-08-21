@@ -13,6 +13,7 @@ from pdf2image import convert_from_bytes
 from PIL import Image
 import logging
 import numpy as np
+from PIL import ImageEnhance
 
 # ログ設定（セキュリティ向上のため最小限のログ出力）
 logging.basicConfig(level=logging.ERROR)
@@ -110,10 +111,10 @@ def is_grayscale_image(image):
         # エラーが発生した場合はカラーとして扱う（安全側）
         return False
 
-# 画像最適化関数（白黒判定対応）
+# 画像最適化関数（白黒判定対応・OpenCV不要版）
 def optimize_image_for_ocr(image, force_bw_mode=False):
     """
-    OCR用に画像を最適化（白黒判定に基づく処理）
+    OCR用に画像を最適化（白黒判定に基づく処理・OpenCV不要版）
     
     Args:
         image (PIL.Image): 最適化する画像
@@ -138,16 +139,26 @@ def optimize_image_for_ocr(image, force_bw_mode=False):
         if image.mode != 'L':
             image = image.convert('L')
         
-        # 白黒画像用のTesseract設定
-        ocr_config = '--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzあいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽゃゅょっー（）：・,./￥'
+        # 白黒画像用のTesseract設定（より厳密な設定）
+        ocr_config = '--oem 3 --psm 6 -c preserve_interword_spaces=1'
         
-        # コントラスト強化（白黒画像の場合）
-        import cv2
-        img_array = np.array(image)
-        # CLAHEを適用してコントラストを改善
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-        img_array = clahe.apply(img_array)
-        image = Image.fromarray(img_array)
+        # PILを使用したコントラスト強化（OpenCV不要）
+        try:
+            # コントラスト調整
+            contrast_enhancer = ImageEnhance.Contrast(image)
+            image = contrast_enhancer.enhance(1.5)  # コントラストを1.5倍に
+            
+            # シャープネス調整
+            sharpness_enhancer = ImageEnhance.Sharpness(image)
+            image = sharpness_enhancer.enhance(1.2)  # シャープネスを1.2倍に
+            
+            # 明度調整（必要に応じて）
+            brightness_enhancer = ImageEnhance.Brightness(image)
+            image = brightness_enhancer.enhance(1.1)  # 明度を少し上げる
+            
+        except Exception as e:
+            logger.warning(f"Image enhancement failed: {str(e)}")
+            # 強化に失敗した場合は元の画像を使用
         
     else:
         # カラー画像用の設定
@@ -157,6 +168,13 @@ def optimize_image_for_ocr(image, force_bw_mode=False):
         
         # カラー画像用のTesseract設定
         ocr_config = '--oem 3 --psm 6'
+        
+        # カラー画像も軽く強化
+        try:
+            contrast_enhancer = ImageEnhance.Contrast(image)
+            image = contrast_enhancer.enhance(1.2)
+        except Exception as e:
+            logger.warning(f"Color image enhancement failed: {str(e)}")
     
     return image, is_bw, ocr_config
 
