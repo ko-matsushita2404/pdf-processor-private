@@ -124,7 +124,7 @@ def extract_hyoki_kaiun_data(ocr_text):
     ocr_text = ocr_text.strip().replace('\u3000', ' ')
     match = re.search(r'請求N[O\)]\s*[:：]\s*([A-Z0-9-]+)', ocr_text)
     if match:
-    invoice_no = match.group(1)
+        invoice_no = match.group(1)
 
     # 納期抽出
     match_delivery_date = re.search(r'請求日\s*:\s*(\d{4}/\d{2}/\d{2})', ocr_text)
